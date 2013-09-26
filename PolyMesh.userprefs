@@ -1,0 +1,14 @@
+﻿<Properties>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="Assets\PolyMesh\Demo\Scripts\RollingRock.cs">
+    <Files>
+      <File FileName="Assets\PolyMesh\Scripts\PolyMesh.cs" Line="1" Column="1" />
+      <File FileName="Assets\PolyMesh\Scripts\Editor\PolyMeshEditor.cs" Line="1" Column="1" />
+      <File FileName="Assets\PolyMesh\Demo\Scripts\RollingRock.cs" Line="1" Column="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>
