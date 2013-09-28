@@ -1031,10 +1031,28 @@ public class PolyMeshEditor : Editor
 
 	Vector3 GetSelectionCenter()
 	{
-		var center = Vector3.zero;
-		foreach (var i in selectedIndices)
-			center += polyMesh.keyPoints[i];
-		return center / selectedIndices.Count;
+		if (polyMesh.keyPoints.Count > 1)
+		{
+			var center = Vector3.zero;
+			var area = 0f;
+			var b = polyMesh.keyPoints[polyMesh.keyPoints.Count - 1];
+			foreach (var i in selectedIndices)
+			{
+				var a = polyMesh.keyPoints[i];
+				var k = a.y * b.x - a.x * b.y;
+				area += k;
+				center.x += (a.x + b.x) * k;
+				center.y += (a.y + b.y) * k;
+				b = a;
+			}
+			area *= 3;
+			if (Mathf.Approximately(area, 0))
+				return Vector3.zero;
+			else
+				return center / area;
+		}
+		else
+			return polyMesh.keyPoints[0];
 	}
 
 	#endregion
