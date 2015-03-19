@@ -1,19 +1,19 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEditor;
-using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 
 [CustomEditor(typeof(PolyMesh))]
 public class PolyMeshEditor : Editor
 {
+	// Using a static flag to tell OnSceneGui when an undo was made while editing
+	// because static variables stats survive Unity's undo/redo system
+	private static bool UNDO_WHILE_EDIT = false;
+
 	enum State { Hover, Drag, BoxSelect, DragSelected, RotateSelected, ScaleSelected, Extrude }
 
 	const float clickRadius = 0.12f;
 
-	FieldInfo undoCallback;
 	bool editing;
-	bool tabDown;
 	State state;
 
 	List<Vector3> keyPoints;
@@ -22,7 +22,7 @@ public class PolyMeshEditor : Editor
 
 	Matrix4x4 worldToLocal;
 	Quaternion inverseRotation;
-	
+
 	Vector3 mousePosition;
 	Vector3 clickPosition;
 	Vector3 screenMousePosition;
@@ -36,6 +36,17 @@ public class PolyMeshEditor : Editor
 	bool extrudeKeyDown;
 	bool doExtrudeUpdate;
 	bool draggingCurve;
+
+	void OnEnable()
+	{
+		// Listen for undo/redo from the editor
+		Undo.undoRedoPerformed += OnUndoRedo;
+	}
+
+	void OnDisable()
+	{
+		Undo.undoRedoPerformed -= OnUndoRedo;
+	}
 
 	#region Inspector GUI
 
@@ -178,6 +189,13 @@ public class PolyMeshEditor : Editor
 		if (KeyPressed(editKey))
 			editing = !editing;
 
+		// Using a static flag, because static seems to survive the undo/redo process
+		if (UNDO_WHILE_EDIT)
+		{
+			editing = true;
+			UNDO_WHILE_EDIT = false;
+		}
+
 		if (editing)
 		{
 			//Update lists
@@ -186,14 +204,6 @@ public class PolyMeshEditor : Editor
 				keyPoints = new List<Vector3>(polyMesh.keyPoints);
 				curvePoints = new List<Vector3>(polyMesh.curvePoints);
 				isCurve = new List<bool>(polyMesh.isCurve);
-			}
-
-			//Crazy hack to register undo
-			if (undoCallback == null)
-			{
-				undoCallback = typeof(EditorApplication).GetField("undoRedoPerformed", BindingFlags.NonPublic | BindingFlags.Static);
-				if (undoCallback != null)
-					undoCallback.SetValue(null, new EditorApplication.CallbackFunction(OnUndoRedo));
 			}
 
 			//Load handle matrix
@@ -226,11 +236,11 @@ public class PolyMeshEditor : Editor
 			{
 				switch (e.keyCode)
 				{
-				case KeyCode.Q:
-				case KeyCode.W:
-				case KeyCode.E:
-				case KeyCode.R:
-					return;
+					case KeyCode.Q:
+					case KeyCode.W:
+					case KeyCode.E:
+					case KeyCode.R:
+						return;
 				}
 			}
 
@@ -244,7 +254,6 @@ public class PolyMeshEditor : Editor
 				HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
 				return;
 			}
-
 			//Cursor rectangle
 			EditorGUIUtility.AddCursorRect(new Rect(0, 0, Camera.current.pixelWidth, Camera.current.pixelHeight), mouseCursor);
 			mouseCursor = MouseCursor.Arrow;
@@ -265,7 +274,7 @@ public class PolyMeshEditor : Editor
 			worldToLocal = polyMesh.transform.worldToLocalMatrix;
 			inverseRotation = Quaternion.Inverse(polyMesh.transform.rotation) * Camera.current.transform.rotation;
 			snap = gridSnap;
-			
+
 			//Update mouse position
 			screenMousePosition = new Vector3(e.mousePosition.x, Camera.current.pixelHeight - e.mousePosition.y);
 			var plane = new Plane(-polyMesh.transform.forward, polyMesh.transform.position);
@@ -278,25 +287,24 @@ public class PolyMeshEditor : Editor
 
 			//Update nearest line and split position
 			nearestLine = NearestLine(out splitPosition);
-			
+
 			//Update the state and repaint
 			var newState = UpdateState();
 			if (state != newState)
 				SetState(newState);
 			HandleUtility.Repaint();
-			e.Use();
 		}
 	}
 
 	void HideWireframe(bool hide)
 	{
-		if (polyMesh.renderer != null)
-			EditorUtility.SetSelectedWireframeHidden(polyMesh.renderer, hide);
+		if (polyMesh.GetComponent<Renderer>() != null)
+			EditorUtility.SetSelectedWireframeHidden(polyMesh.GetComponent<Renderer>(), hide);
 	}
 
 	void RecordUndo()
 	{
-#if UNITY_4_3
+#if UNITY_5_0
 		Undo.RecordObject(target, "PolyMesh Changed");
 #else
 		Undo.RegisterUndo(target, "PolyMesh Changed");
@@ -305,8 +313,8 @@ public class PolyMeshEditor : Editor
 
 	void RecordDeepUndo()
 	{
-#if UNITY_4_3
-		Undo.RegisterFullObjectHierarchyUndo(target);
+#if UNITY_5_0
+		Undo.RegisterFullObjectHierarchyUndo(target, "PolyMesh Changed");
 #else
 		Undo.RegisterSceneUndo("PolyMesh Changed");
 #endif
@@ -323,8 +331,8 @@ public class PolyMeshEditor : Editor
 		state = newState;
 		switch (state)
 		{
-		case State.Hover:
-			break;
+			case State.Hover:
+				break;
 		}
 	}
 
@@ -424,12 +432,17 @@ public class PolyMeshEditor : Editor
 	//Update the mesh on undo/redo
 	void OnUndoRedo()
 	{
+		// If undo/redo was called while editing
+		// mark it for OnSceneGui to reset the editing flag
+		// after the unity editor has completed the undo/redo process
+		UNDO_WHILE_EDIT = editing;
+
 		keyPoints = new List<Vector3>(polyMesh.keyPoints);
 		curvePoints = new List<Vector3>(polyMesh.curvePoints);
 		isCurve = new List<bool>(polyMesh.isCurve);
 		polyMesh.BuildMesh();
 	}
-	
+
 	void LoadPoly()
 	{
 		for (int i = 0; i < keyPoints.Count; i++)
@@ -1165,9 +1178,9 @@ public class PolyMeshEditor : Editor
 
 	static void CreateSquare(PolyMesh polyMesh, float size)
 	{
-		polyMesh.keyPoints.AddRange(new Vector3[] { new Vector3(size, size), new Vector3(size, -size), new Vector3(-size, -size), new Vector3(-size, size)} );
-		polyMesh.curvePoints.AddRange(new Vector3[] { Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero } );
-		polyMesh.isCurve.AddRange(new bool[] { false, false, false, false } );
+		polyMesh.keyPoints.AddRange(new Vector3[] { new Vector3(size, size), new Vector3(size, -size), new Vector3(-size, -size), new Vector3(-size, size) });
+		polyMesh.curvePoints.AddRange(new Vector3[] { Vector3.zero, Vector3.zero, Vector3.zero, Vector3.zero });
+		polyMesh.isCurve.AddRange(new bool[] { false, false, false, false });
 		polyMesh.BuildMesh();
 	}
 
