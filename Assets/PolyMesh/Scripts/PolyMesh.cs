@@ -1,4 +1,8 @@
-﻿using UnityEngine;
+﻿#if UNITY_2_6 || UNITY_3_0 || UNITY_3_1 || UNITY_3_2 || UNITY_3_3 || UNITY_3_4 || UNITY_3_5 || UNITY_4_0 || UNITY_4_1 || UNITY_4_2
+#define UNITY_4_2_OR_LOWER
+#endif
+
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -9,10 +13,16 @@ public class PolyMesh : MonoBehaviour
 	public List<Vector3> curvePoints = new List<Vector3>();
 	public List<bool> isCurve = new List<bool>();
 	public MeshCollider meshCollider;
+#if !UNITY_4_2_OR_LOWER
+	public PolygonCollider2D polyCollider;
+#endif
 	[Range(0.01f, 1)] public float curveDetail = 0.1f;
 	public float colliderDepth = 1;
 	public bool buildColliderEdges = true;
 	public bool buildColliderFront;
+#if !UNITY_4_2_OR_LOWER
+	public bool buildColliderPolygonCollider;
+#endif
 	public Vector2 uvPosition;
 	public float uvScale = 1;
 	public float uvRotation;
@@ -91,6 +101,19 @@ public class PolyMesh : MonoBehaviour
 	
 	void UpdateCollider(List<Vector3> points, int[] tris)
 	{
+#if !UNITY_4_2_OR_LOWER
+		//Update the polygon collider if there is one
+		if (polyCollider != null) 
+		{
+			Vector2[] points2d = new Vector2[points.Count];
+			for (int i = 0; i < points.Count; i++) {
+				Vector3 point = points[i];
+				points2d[i] = new Vector2(point.x, point.y);
+			}
+
+			polyCollider.SetPath(0, points2d);
+		}
+#endif
 		//Update the mesh collider if there is one
 		if (meshCollider != null)
 		{
