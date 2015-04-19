@@ -1,4 +1,8 @@
-﻿using UnityEngine;
+﻿#if UNITY_2_6 || UNITY_3_0 || UNITY_3_1 || UNITY_3_2 || UNITY_3_3 || UNITY_3_4 || UNITY_3_5 || UNITY_4_0 || UNITY_4_1 || UNITY_4_2
+#define UNITY_4_2_OR_LOWER
+#endif
+
+using UnityEngine;
 using UnityEditor;
 using System.Collections;
 using System.Collections.Generic;
@@ -112,6 +116,10 @@ public class PolyMeshEditor : Editor
 		//Create collider
 		if (colliderSettings = EditorGUILayout.Foldout(colliderSettings, "Collider"))
 		{
+#if !UNITY_4_2_OR_LOWER
+			//Polygon Collider for 2D stuff.
+			var buildColliderPolygonCollider = EditorGUILayout.Toggle("PolygonCollider2D", polyMesh.buildColliderPolygonCollider);
+#endif
 			//Collider depth
 			var colliderDepth = EditorGUILayout.FloatField("Depth", polyMesh.colliderDepth);
 			colliderDepth = Mathf.Max(colliderDepth, 0.01f);
@@ -123,6 +131,9 @@ public class PolyMeshEditor : Editor
 				polyMesh.colliderDepth = colliderDepth;
 				polyMesh.buildColliderEdges = buildColliderEdges;
 				polyMesh.buildColliderFront = buildColliderFront;
+#if !UNITY_4_2_OR_LOWER
+				polyMesh.buildColliderPolygonCollider = buildColliderPolygonCollider;
+#endif
 			}
 
 			//Destroy collider
@@ -131,8 +142,20 @@ public class PolyMeshEditor : Editor
 				if (GUILayout.Button("Create Collider"))
 				{
 					RecordDeepUndo();
+
+#if !UNITY_4_2_OR_LOWER
+					GameObject obj;
+					if (buildColliderPolygonCollider) {
+						obj = new GameObject("Collider", typeof(PolygonCollider2D));
+						polyMesh.polyCollider = obj.GetComponent<PolygonCollider2D>();
+					} else {
+						obj = new GameObject("Collider", typeof(MeshCollider));
+						polyMesh.meshCollider = obj.GetComponent<MeshCollider>();
+					}
+#else
 					var obj = new GameObject("Collider", typeof(MeshCollider));
 					polyMesh.meshCollider = obj.GetComponent<MeshCollider>();
+#endif
 					obj.transform.parent = polyMesh.transform;
 					obj.transform.localPosition = Vector3.zero;
 				}
@@ -140,7 +163,11 @@ public class PolyMeshEditor : Editor
 			else if (GUILayout.Button("Destroy Collider"))
 			{
 				RecordDeepUndo();
-				DestroyImmediate(polyMesh.meshCollider.gameObject);
+				if (polyMesh.meshCollider) {
+					DestroyImmediate(polyMesh.meshCollider.gameObject);
+				} else if (polyMesh.polyCollider) {
+					DestroyImmediate(polyMesh.polyCollider.gameObject);
+				}
 			}
 		}
 
@@ -296,19 +323,21 @@ public class PolyMeshEditor : Editor
 
 	void RecordUndo()
 	{
-#if UNITY_4_3
-		Undo.RecordObject(target, "PolyMesh Changed");
-#else
+#if UNITY_4_2_OR_LOWER
 		Undo.RegisterUndo(target, "PolyMesh Changed");
+#else
+		Undo.RecordObject(target, "PolyMesh Changed");
 #endif
 	}
 
 	void RecordDeepUndo()
 	{
-#if UNITY_4_3
+#if UNITY_4_2_OR_LOWER
+		Undo.RegisterSceneUndo("PolyMesh Changed");
+#elif UNITY_4_3
 		Undo.RegisterFullObjectHierarchyUndo(target);
 #else
-		Undo.RegisterSceneUndo("PolyMesh Changed");
+		Undo.RegisterFullObjectHierarchyUndo(target, "PolyMesh Changed");
 #endif
 
 	}
